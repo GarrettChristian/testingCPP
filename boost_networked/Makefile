@@ -1,11 +1,11 @@
 all: Client Server
 
 Client:
-	g++ -g -Wall daytime_client.cpp -o daytime_client -lpthread
+	g++ -g -Wall client.cpp -o client -lpthread
 
 Server:
-	g++ -g -Wall daytime_server.cpp -o daytime_server -lpthread
+	g++ -g -Wall server.cpp -o server -lpthread
 
 clean: 
-	rm daytime_client
-	rm daytime_server
+	rm client
+	rm server
