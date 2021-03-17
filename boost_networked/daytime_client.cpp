@@ -1,13 +1,8 @@
 //
 // client.cpp
 // ~~~~~~~~~~
-//
-// Copyright (c) 2003-2020 Christopher M. Kohlhoff (chris at kohlhoff dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-// https://www.boost.org/doc/libs/1_75_0/doc/html/boost_asio/tutorial/tutdaytime1.html
+// Following
+// https://www.codeproject.com/Articles/1264257/Socket-Programming-in-Cplusplus-using-boost-asio-T
 //
 
 #include <iostream>
