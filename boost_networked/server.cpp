@@ -6,6 +6,9 @@
 //
 // Official repository: https://github.com/boostorg/beast
 //
+// https://www.boost.org/doc/libs/1_75_0/libs/beast/doc/html/beast/examples.html
+// https://www.boost.org/doc/libs/1_75_0/libs/beast/example/websocket/server/async/websocket_server_async.cpp
+//
 
 //------------------------------------------------------------------------------
 //
