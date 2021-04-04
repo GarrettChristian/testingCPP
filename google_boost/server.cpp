@@ -1,25 +1,9 @@
-//
-// Copyright (c) 2016-2019 Vinnie Falco (vinnie dot falco at gmail dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-// Official repository: https://github.com/boostorg/beast
-//
-// https://www.boost.org/doc/libs/1_75_0/libs/beast/doc/html/beast/examples.html
-// https://www.boost.org/doc/libs/1_75_0/libs/beast/example/websocket/server/async/websocket_server_async.cpp
-//
-
-//------------------------------------------------------------------------------
-//
-// Example: WebSocket server, asynchronous
-//
-//------------------------------------------------------------------------------
-
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/program_options.hpp>
+#include <optional>
 #include <algorithm>
 #include <cstdlib>
 #include <functional>
@@ -34,6 +18,7 @@ namespace http = beast::http;           // from <boost/beast/http.hpp>
 namespace websocket = beast::websocket; // from <boost/beast/websocket.hpp>
 namespace net = boost::asio;            // from <boost/asio.hpp>
 using tcp = boost::asio::ip::tcp;       // from <boost/asio/ip/tcp.hpp>
+namespace po = boost::program_options;
 
 //------------------------------------------------------------------------------
 
@@ -248,38 +233,67 @@ private:
 
 //------------------------------------------------------------------------------
 
-int main(int argc, char* argv[])
-{
-    // Check command line arguments.
-    if (argc != 4)
-    {
-        std::cerr <<
-            "Usage: websocket-server-async <address> <port> <threads>\n" <<
-            "Example:\n" <<
-            "    websocket-server-async 0.0.0.0 8080 1\n";
-        return EXIT_FAILURE;
+po::variables_map parse_args(int& argc, char* argv[]) {
+  // Initialize the default port with the value from the "PORT" environment
+  // variable or with 8080.
+  auto port = [&]() -> std::uint16_t {
+    auto env = std::getenv("PORT");
+    if (env == nullptr) return 8080;
+    auto value = std::stoi(env);
+    if (value < std::numeric_limits<std::uint16_t>::min() ||
+        value > std::numeric_limits<std::uint16_t>::max()) {
+      std::ostringstream os;
+      os << "The PORT environment variable value (" << value
+         << ") is out of range.";
+      throw std::invalid_argument(std::move(os).str());
     }
-    auto const address = net::ip::make_address(argv[1]);
-    auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
-    auto const threads = std::max<int>(1, std::atoi(argv[3]));
+    return static_cast<std::uint16_t>(value);
+  }();
 
-    // The io_context is required for all I/O
-    net::io_context ioc{threads};
+  // Parse the command-line options.
+  po::options_description desc("Server configuration");
+  desc.add_options()
+      //
+      ("help", "produce help message")
+      //
+      ("address", po::value<std::string>()->default_value("0.0.0.0"),
+       "set listening address")
+      //
+      ("port", po::value<std::uint16_t>()->default_value(port),
+       "set listening port");
 
-    // Create and launch a listening port
-    std::make_shared<listener>(ioc, tcp::endpoint{address, port})->run();
+  po::variables_map vm;
+  po::store(po::parse_command_line(argc, argv, desc), vm);
+  po::notify(vm);
+  if (vm.count("help")) {
+    std::cout << desc << "\n";
+  }
+  return vm;
+}
 
-    // Run the I/O service on the requested number of threads
-    std::vector<std::thread> v;
-    v.reserve(threads - 1);
-    for(auto i = threads - 1; i > 0; --i)
-        v.emplace_back(
-        [&ioc]
-        {
-            ioc.run();
-        });
-    ioc.run();
+int main(int argc, char* argv[]) try {
+  po::variables_map vm = parse_args(argc, argv);
 
-    return EXIT_SUCCESS;
-    
+  if (vm.count("help")) return 0;
+
+  auto address = asio::ip::make_address(vm["address"].as<std::string>());
+  auto port = vm["port"].as<std::uint16_t>();
+  std::cout << "Listening on " << address << ":" << port << std::endl;
+
+  // Create and launch a listening port
+  std::make_shared<listener>(ioc, tcp::endpoint{address, port})->run();
+
+  net::io_context ioc{/*concurrency_hint=*/1};
+  tcp::acceptor acceptor{ioc, {address, port}};
+  for (;;) {
+    auto socket = acceptor.accept(ioc);
+    if (!socket.is_open()) break;
+    // Run a thread per-session, transferring ownership of the socket
+    std::thread{handle_session, std::move(socket)}.detach();
+  }
+
+  return 0;
+} catch (std::exception const& ex) {
+  std::cerr << "Standard exception caught " << ex.what() << '\n';
+  return 1;
 }
